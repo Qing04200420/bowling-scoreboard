@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>保齡球計分板</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="page-record">
+
+<div class="header">
+  <a href="index.html" style="text-decoration:none"><h1>保齡球計分板</h1></a>
+  <div class="header-info">
+    <p>比賽日期：<span id="dateDisplay"></span></p>
+  </div>
+  <div class="header-controls">
+    <button class="btn" onclick="addPlayer()">+ 新增選手</button>
+    <button class="btn" onclick="exportExcel()">匯出Excel</button>
+    <button class="btn" onclick="resetAll()">重置</button>
+    <button class="btn" onclick="location.href='index.html'">回首頁</button>
+  </div>
+</div>
+
+<div class="game-tabs" id="gameTabs">
+  <button class="game-tab active" onclick="switchGame(0)"><span class="tab-full">第一局</span><span class="tab-short">G1</span></button>
+  <button class="game-tab" onclick="switchGame(1)"><span class="tab-full">第二局</span><span class="tab-short">G2</span></button>
+  <button class="game-tab" onclick="switchGame(2)"><span class="tab-full">第三局</span><span class="tab-short">G3</span></button>
+  <div class="tab-spacer"></div>
+  <button class="game-tab tab-rankings" onclick="showRankingsView()">排名</button>
+</div>
+
+<div class="board-wrap" id="boardWrap">
+  <table class="board">
+    <thead>
+      <tr>
+        <th class="th-name"></th>
+        <th class="th-frame">1</th><th class="th-frame">2</th><th class="th-frame">3</th>
+        <th class="th-frame">4</th><th class="th-frame">5</th><th class="th-frame">6</th>
+        <th class="th-frame">7</th><th class="th-frame">8</th><th class="th-frame">9</th>
+        <th class="th-frame10">10</th>
+        <th class="th-total">TOTAL</th>
+      </tr>
+    </thead>
+    <tbody id="boardBody"></tbody>
+  </table>
+</div>
+
+<div class="rankings-view" id="rankingsView"></div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h2>新增選手</h2>
+    <input class="modal-input" id="modalInput" placeholder="輸入選手名稱" maxlength="20">
+    <div class="modal-btns">
+      <button class="modal-btn modal-btn-cancel" onclick="closeModal()">取消</button>
+      <button class="modal-btn modal-btn-ok" onclick="confirmAddPlayer()">確認</button>
+    </div>
+  </div>
+</div>
+
+<div class="pin-panel" id="pinPanel">
+  <button class="pin-panel-close" onclick="closePanel()">&times;</button>
+  <div class="pin-panel-info" id="pinInfo"></div>
+  <div class="pin-btns" id="pinBtns"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="scripts.js"></script>
+</body>
+</html>
