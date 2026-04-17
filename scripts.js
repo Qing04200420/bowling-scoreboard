@@ -1,10 +1,82 @@
-// ── State ──
+// ── Constants ──
 const NUM_GAMES = 3;
-let players = [];
-let currentGame = 0;       // 0, 1, 2
-let currentView = 'game';  // 'game' | 'rankings'
-let activeCell = null;      // { pi, frame, roll }
+const GAME_LABELS = ['第一局', '第二局', '第三局'];
 
+// ── Local State ──
+let players = [];
+let currentGame = 0;
+let currentView = 'game';
+let activeCell = null;
+
+// ── Firebase ──
+firebase.initializeApp({
+  apiKey: "AIzaSyBHavq-UDlYWA6rrfJSc1fiGUgac9LFgOo",
+  authDomain: "bowling-scoreboard-f18dd.firebaseapp.com",
+  databaseURL: "https://bowling-scoreboard-f18dd-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "bowling-scoreboard-f18dd",
+  storageBucket: "bowling-scoreboard-f18dd.firebasestorage.app",
+  messagingSenderId: "599939779448",
+  appId: "1:599939779448:web:2670ca0f1e55c58913568d"
+});
+const db = firebase.database();
+const sessionRef = db.ref('session');
+
+function pushState() {
+  const playersObj = {};
+  players.forEach((p, i) => {
+    const gamesObj = {};
+    p.games.forEach((g, gi) => {
+      const rollsObj = {};
+      g.rolls.forEach((v, ri) => { if (v !== null) rollsObj[String(ri)] = v; });
+      gamesObj[String(gi)] = { rolls: rollsObj };
+    });
+    playersObj[String(i)] = { name: p.name, games: gamesObj };
+  });
+  sessionRef.set({ currentGame, currentView, players: playersObj });
+}
+
+function playerFromDb(data) {
+  const games = [];
+  for (let i = 0; i < NUM_GAMES; i++) {
+    const dbGame = (data.games && data.games[String(i)]) || {};
+    const rolls = new Array(21).fill(null);
+    if (dbGame.rolls) {
+      Object.entries(dbGame.rolls).forEach(([k, v]) => { rolls[parseInt(k)] = v; });
+    }
+    games.push({ rolls });
+  }
+  return { name: data.name || '', games };
+}
+
+// ── Firebase Listener ──
+let _initialized = false;
+sessionRef.on('value', snapshot => {
+  const data = snapshot.val();
+  if (!data || !data.players) {
+    if (!_initialized) {
+      _initialized = true;
+      players = [createPlayer('PLAYER 1')];
+      currentGame = 0;
+      currentView = 'game';
+      document.getElementById('dateDisplay').textContent = new Date().toLocaleDateString('zh-TW');
+      pushState();
+      render();
+    }
+    return;
+  }
+  players = Object.keys(data.players)
+    .sort((a, b) => parseInt(a) - parseInt(b))
+    .map(k => playerFromDb(data.players[k]));
+  if (data.currentGame !== undefined) currentGame = data.currentGame;
+  if (data.currentView !== undefined) currentView = data.currentView;
+  if (!_initialized) {
+    _initialized = true;
+    document.getElementById('dateDisplay').textContent = new Date().toLocaleDateString('zh-TW');
+  }
+  render();
+});
+
+// ── Player ──
 function createPlayer(name) {
   const games = [];
   for (let i = 0; i < NUM_GAMES; i++) games.push({ rolls: new Array(21).fill(null) });
@@ -12,12 +84,6 @@ function createPlayer(name) {
 }
 
 function getRolls(p, g) { return p.games[g !== undefined ? g : currentGame].rolls; }
-
-function init() {
-  players = [createPlayer('PLAYER 1')];
-  document.getElementById('dateDisplay').textContent = new Date().toLocaleDateString('zh-TW');
-  render();
-}
 
 // ── Roll index ──
 function rollIndex(frame, roll) {
@@ -105,7 +171,6 @@ function rollSymbol(p, frame, rollInFrame, gameIdx) {
     return val === 0 ? { text: '-', cls: 'gutter' } : { text: String(val), cls: '' };
   }
 
-  // Frame 10
   const simple = (v) => v === 10 ? { text: 'X', cls: 'strike' } : v === 0 ? { text: '-', cls: 'gutter' } : { text: String(v), cls: '' };
 
   if (rollInFrame === 0) return simple(val);
@@ -115,7 +180,6 @@ function rollSymbol(p, frame, rollInFrame, gameIdx) {
     if (f10r1 + val === 10) return { text: '/', cls: 'spare' };
     return val === 0 ? { text: '-', cls: 'gutter' } : { text: String(val), cls: '' };
   }
-  // rollInFrame 2
   const f10r1 = r[18], f10r2 = r[19];
   if (f10r1 === 10 && f10r2 !== 10 && f10r2 + val === 10) return { text: '/', cls: 'spare' };
   return simple(val);
@@ -192,7 +256,7 @@ function getMaxPins(pi, frame, roll) {
   const r1 = r[18], r2 = r[19];
   if (r1 === 10 && r2 === 10) return 10;
   if (r1 === 10) return 10 - r2;
-  return 10; // after spare
+  return 10;
 }
 
 // ── Awards ──
@@ -205,8 +269,6 @@ function getBallSequence(rolls) {
   b.push(rolls[18], rolls[19], rolls[20]);
   return b;
 }
-
-const GAME_LABELS = ['第一局', '第二局', '第三局'];
 
 function calcTurkeyAward() {
   let best = null;
@@ -305,8 +367,8 @@ function render() {
 
     html += `<td class="player-name-cell" style="position:relative">
       <input class="player-name-input" data-pi="${pi}" value="${escHtml(p.name)}"
-        onchange="players[${pi}].name=this.value"
-        onblur="players[${pi}].name=this.value" placeholder="輸入選手名稱">
+        onchange="updatePlayerName(${pi},this.value)"
+        onblur="updatePlayerName(${pi},this.value)" placeholder="輸入選手名稱">
       ${players.length > 1 ? `<button class="remove-btn" onclick="event.stopPropagation();removePlayer(${pi})">&times;</button>` : ''}
     </td>`;
 
@@ -370,34 +432,28 @@ function renderRankings() {
   });
   html += '</tbody></table>';
 
-  // 特別獎項
   const done = allGamesComplete();
   html += `<h3 class="awards-title">特別獎項${done ? '' : '（比賽進行中）'}</h3><div class="awards-grid">`;
-  //火雞獎
   const turkey = calcTurkeyAward();
   html += `<div class="award-card ${turkey?'won':''}">
     <div class="award-icon">🦃</div><div class="award-name">火雞獎</div>
     ${turkey ? `<div class="award-winner">${escHtml(players[turkey.pi].name)}</div><div class="award-stat">${GAME_LABELS[turkey.game]}．最多連續 ${turkey.count} 次</div>` : `<div class="award-pending">待定</div>`}
   </div>`;
-  // 洗溝獎
   const gutter = calcGutterAward();
   html += `<div class="award-card ${gutter?'won':''}">
     <div class="award-icon">🕳️</div><div class="award-name">洗溝獎</div>
     ${gutter ? `<div class="award-winner">${escHtml(players[gutter.pi].name)}</div><div class="award-stat">${GAME_LABELS[gutter.game]}．共 ${gutter.count} 次</div>` : `<div class="award-pending">待定</div>`}
   </div>`;
-  // 幸運7獎
   const lucky7 = calcLucky7Award();
   html += `<div class="award-card ${lucky7.length?'won':''}">
     <div class="award-icon">🍀</div><div class="award-name">幸運7獎</div>
     ${lucky7.length ? [...new Set(lucky7.map(w => w.pi))].map(pi => `<div class="award-winner">${escHtml(players[pi].name)}</div>`).join('') : `<div class="award-pending">${done?'無人獲獎':'待定'}</div>`}
   </div>`;
-  // BB獎
   const bb = done ? calcBBAward() : null;
   html += `<div class="award-card ${bb?'won':''}">
     <div class="award-icon">👶</div><div class="award-name">BB獎</div>
     ${bb ? `<div class="award-winner">${escHtml(players[bb.pi].name)}</div>` : `<div class="award-pending">${done&&players.length<2?'人數不足':'待定'}</div>`}
   </div>`;
-{/* <div class="award-stat">總分 ${bb.total}（倒數第二）</div> */}
   html += '</div>';
 
   html += `<div class="info-section">
@@ -427,6 +483,66 @@ function updateTabs() {
 
 function escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── 匯入選手名單 ──
+function triggerImport() {
+  document.getElementById('importModalOverlay').classList.add('show');
+}
+
+function closeImportModal() {
+  document.getElementById('importModalOverlay').classList.remove('show');
+}
+
+function confirmImportModal() {
+  closeImportModal();
+  const input = document.getElementById('importFileInput');
+  input.value = '';
+  input.click();
+}
+
+document.getElementById('importModalOverlay').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeImportModal();
+});
+
+function importPlayers(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    if (typeof XLSX === 'undefined') { alert('套件尚未載入，請稍後再試'); return; }
+    const wb = XLSX.read(e.target.result, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+    const existing = new Set(players.map(p => p.name));
+    const seen = new Set();
+    const names = rows
+      .map(r => String(r[0] || '').trim())
+      .filter(n => {
+        if (!n || n === '名稱' || n === '選手' || n === 'name' || n === 'Name') return false;
+        if (existing.has(n) || seen.has(n)) return false;
+        seen.add(n);
+        return true;
+      });
+
+    if (names.length === 0) { alert('找不到可新增的選手名稱（檔案為空或全部重複）'); return; }
+
+    const limit = 100;
+    const available = limit - players.length;
+    const toAdd = names.slice(0, available);
+
+    if (toAdd.length === 0) { alert('已達人數上限（100 人）'); return; }
+    toAdd.forEach(name => players.push(createPlayer(name)));
+    players = players.filter(p => {
+      const isDefault = /^PLAYER \d+$/i.test(p.name);
+      const isEmpty = p.games.every(g => g.rolls.every(r => r === null));
+      return !(isDefault && isEmpty);
+    });
+    if (names.length > available) alert(`已匯入 ${toAdd.length} 位，剩餘 ${names.length - toAdd.length} 位超過上限未加入`);
+    pushState();
+  };
+  reader.readAsArrayBuffer(file);
 }
 
 // ── 匯出 Excel (xlsx) ──
@@ -505,14 +621,14 @@ function switchGame(g) {
   currentView = 'game';
   activeCell = null;
   closePanel();
-  render();
+  pushState();
 }
 
 function showRankingsView() {
   currentView = 'rankings';
   activeCell = null;
   closePanel();
-  render();
+  pushState();
 }
 
 function onFrameClick(pi, frame) {
@@ -584,7 +700,7 @@ function onPinClick(n) {
       closePanel();
     }
   }
-  render();
+  pushState();
 }
 
 // ── Add / Remove ──
@@ -602,7 +718,7 @@ function confirmAddPlayer() {
   const input = document.getElementById('modalInput');
   players.push(createPlayer(input.value.trim() || input.placeholder));
   closeModal();
-  render();
+  pushState();
 }
 
 function closeModal() { document.getElementById('modalOverlay').classList.remove('show'); }
@@ -615,11 +731,16 @@ document.getElementById('modalOverlay').addEventListener('click', (e) => {
   if (e.target === e.currentTarget) closeModal();
 });
 
+function updatePlayerName(pi, name) {
+  players[pi].name = name;
+  pushState();
+}
+
 function removePlayer(pi) {
   if (players.length <= 1) return;
   players.splice(pi, 1);
   if (activeCell && activeCell.pi >= players.length) activeCell = null;
-  render();
+  pushState();
 }
 
 function resetAll() {
@@ -629,7 +750,7 @@ function resetAll() {
   currentView = 'game';
   activeCell = null;
   closePanel();
-  render();
+  pushState();
 }
 
 // ── Keyboard ──
@@ -646,6 +767,3 @@ document.addEventListener('keydown', (e) => {
     if (10 <= max) onPinClick(10);
   }
 });
-
-// ── Init ──
-init();

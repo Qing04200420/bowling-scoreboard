@@ -15,6 +15,8 @@
   </div>
   <div class="header-controls">
     <button class="btn" onclick="addPlayer()">+ 新增選手</button>
+    <button class="btn" onclick="triggerImport()">匯入名單</button>
+    <input type="file" id="importFileInput" accept=".xlsx,.xls" style="display:none" onchange="importPlayers(this)">
     <button class="btn" onclick="exportExcel()">匯出Excel</button>
     <button class="btn" onclick="resetAll()">重置</button>
     <button class="btn" onclick="location.href='index.html'">回首頁</button>
@@ -58,6 +60,29 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="importModalOverlay">
+  <div class="modal">
+    <h2>匯入選手名單</h2>
+    <div class="import-modal-body">
+      <p>僅接受 <strong>.xlsx</strong> 或 <strong>.xls</strong> 格式的 Excel 檔案。</p>
+      <p>請將選手名稱填入 <strong>第一欄（A欄）</strong>，每行一位：</p>
+      <table class="import-example-table">
+        <thead><tr><th>A</th><th>B</th></tr></thead>
+        <tbody>
+          <tr><td>張小明</td><td class="muted">（其他欄位忽略）</td></tr>
+          <tr><td>李大華</td><td></td></tr>
+          <tr><td>王美麗</td><td></td></tr>
+        </tbody>
+      </table>
+      <p class="import-note">第一行若為「選手」、「名稱」等標題會自動略過。</p>
+    </div>
+    <div class="modal-btns">
+      <button class="modal-btn modal-btn-cancel" onclick="closeImportModal()">取消</button>
+      <button class="modal-btn modal-btn-ok" onclick="confirmImportModal()">選擇檔案</button>
+    </div>
+  </div>
+</div>
+
 <div class="pin-panel" id="pinPanel">
   <button class="pin-panel-close" onclick="closePanel()">&times;</button>
   <div class="pin-panel-info" id="pinInfo"></div>
@@ -65,6 +90,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script src="scripts.js"></script>
 </body>
 </html>
