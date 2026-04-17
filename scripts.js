@@ -52,16 +52,15 @@ function playerFromDb(data) {
 let _initialized = false;
 sessionRef.on('value', snapshot => {
   const data = snapshot.val();
+  if (!_initialized) {
+    _initialized = true;
+    document.getElementById('dateDisplay').textContent = new Date().toLocaleDateString('zh-TW');
+  }
   if (!data || !data.players) {
-    if (!_initialized) {
-      _initialized = true;
-      players = [createPlayer('PLAYER 1')];
-      currentGame = 0;
-      currentView = 'game';
-      document.getElementById('dateDisplay').textContent = new Date().toLocaleDateString('zh-TW');
-      pushState();
-      render();
-    }
+    players = [];
+    currentGame = 0;
+    currentView = 'game';
+    render();
     return;
   }
   players = Object.keys(data.players)
@@ -69,10 +68,6 @@ sessionRef.on('value', snapshot => {
     .map(k => playerFromDb(data.players[k]));
   if (data.currentGame !== undefined) currentGame = data.currentGame;
   if (data.currentView !== undefined) currentView = data.currentView;
-  if (!_initialized) {
-    _initialized = true;
-    document.getElementById('dateDisplay').textContent = new Date().toLocaleDateString('zh-TW');
-  }
   render();
 });
 
