@@ -524,13 +524,18 @@ function importPlayers(input) {
 
     const toAdd = names.slice(0, 100);
     if (toAdd.length === 0) { alert('已達人數上限（100 人）'); return; }
-    players = toAdd.map(name => createPlayer(name));
+
+    // 先清除 Firebase 舊資料，再寫入新名單
+    players = [];
     currentGame = 0;
     currentView = 'game';
     activeCell = null;
     closePanel();
-    if (names.length > 100) alert(`已匯入 ${toAdd.length} 位，剩餘 ${names.length - 100} 位超過上限未加入`);
-    pushState();
+    sessionRef.remove().then(() => {
+      players = toAdd.map(name => createPlayer(name));
+      if (names.length > 100) alert(`已匯入 ${toAdd.length} 位，剩餘 ${names.length - 100} 位超過上限未加入`);
+      pushState();
+    });
   };
   reader.readAsArrayBuffer(file);
 }
