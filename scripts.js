@@ -515,31 +515,26 @@ function importPlayers(input) {
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
-    const existing = new Set(players.map(p => p.name));
     const seen = new Set();
     const names = rows
       .map(r => String(r[0] || '').trim())
       .filter(n => {
         if (!n || n === '名稱' || n === '選手' || n === 'name' || n === 'Name') return false;
-        if (existing.has(n) || seen.has(n)) return false;
+        if (seen.has(n)) return false;
         seen.add(n);
         return true;
       });
 
     if (names.length === 0) { alert('找不到可新增的選手名稱（檔案為空或全部重複）'); return; }
 
-    const limit = 100;
-    const available = limit - players.length;
-    const toAdd = names.slice(0, available);
-
+    const toAdd = names.slice(0, 100);
     if (toAdd.length === 0) { alert('已達人數上限（100 人）'); return; }
-    toAdd.forEach(name => players.push(createPlayer(name)));
-    players = players.filter(p => {
-      const isDefault = /^PLAYER \d+$/i.test(p.name);
-      const isEmpty = p.games.every(g => g.rolls.every(r => r === null));
-      return !(isDefault && isEmpty);
-    });
-    if (names.length > available) alert(`已匯入 ${toAdd.length} 位，剩餘 ${names.length - toAdd.length} 位超過上限未加入`);
+    players = toAdd.map(name => createPlayer(name));
+    currentGame = 0;
+    currentView = 'game';
+    activeCell = null;
+    closePanel();
+    if (names.length > 100) alert(`已匯入 ${toAdd.length} 位，剩餘 ${names.length - 100} 位超過上限未加入`);
     pushState();
   };
   reader.readAsArrayBuffer(file);
